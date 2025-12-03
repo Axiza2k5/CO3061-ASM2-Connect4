@@ -1,4 +1,5 @@
 import random
+import math
 
 class Player():
     """A class that represents a player in the game"""
@@ -48,6 +49,8 @@ class ComputerPlayer(Player):
         """
         if (player_type == "random"):
             self.player = RandomPlayer(coin_type)
+        elif (player_type == "minimax"):
+            self.player = MinimaxPlayer(coin_type)
         else:
             self.player = QLearningPlayer(coin_type)
         
@@ -95,13 +98,12 @@ class RandomPlayer(Player):
         """
         return random.choice(actions)
                 
-    def learn(self, board, action, game_over, game_logic):
+    def learn(self, board, actions, action, game_over, game_logic):
         """
         The random player does not learn from its actions
         """
         pass
-    
-    
+       
 class QLearningPlayer(Player):
     """A class that represents an AI using Q-learning algorithm"""
     
@@ -169,3 +171,24 @@ class QLearningPlayer(Player):
         result_state = board.get_state()
         maxqnew = max([self.getQ(result_state, a) for a in actions])
         self.q[(prev_state, chosen_action)] = prev + self.alpha * ((reward + self.gamma*maxqnew) - prev)    
+
+class MinimaxPlayer(Player):
+    """placeholder for minimax player"""
+    
+    def __init__(self, coin_type):
+        """
+        Initialize the computer player
+        """
+        Player.__init__(self, coin_type)
+        
+    def choose_action(self, state, actions):
+        """
+        placeholder for minimax player
+        """
+        return random.choice(actions)
+                
+    def learn(self, board, actions, action, game_over, game_logic):
+        """
+        placeholder for minimax player
+        """
+        pass
