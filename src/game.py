@@ -415,20 +415,18 @@ class GameView(object):
         Draw the elements for the game over screen
         """        
         font = pygame.font.SysFont(FONT_NAME, 60, bold=True)
-        game_over_text = 'GAME OVER'
-        self.title_surface = font.render(game_over_text, True, GREEN)
-        fw, fh = font.size(game_over_text)
+        
+        if winner != 'TIE':
+            title_text = winner + " won!"
+        else:
+            title_text = "It was a TIE!"
+            
+        self.title_surface = font.render(title_text, True, GREEN)
+        fw, fh = font.size(title_text)
         self.background.blit(self.title_surface, ((self.width - fw) // 2, 150))
+        
         play_again_text = 'Return to Main Menu'
         quit_text = 'Quit'
-        if winner != 'TIE':
-            winner_text = winner + " wins!"
-        else:
-            winner_text = "It was a " + winner + "!"
-        font = pygame.font.SysFont(FONT_NAME, 40, bold=True)
-        winner_surface = font.render(winner_text, True, BLACK)
-        fw, fh = font.size(winner_text)
-        self.background.blit(winner_surface, ((self.width - fw) // 2, 300) )
         
         # Define colors based on selection
         c1 = RED if selected_option == 0 else BLACK
