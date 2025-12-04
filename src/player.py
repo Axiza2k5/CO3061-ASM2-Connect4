@@ -14,6 +14,13 @@ class Player():
         Initialize a player with their coin type
         """
         self.coin_type = coin_type
+        self._type = None
+        
+    def type(self):
+        """
+        Return the type of the player
+        """
+        return self._type
         
     def complete_move(self):
         """
@@ -33,6 +40,7 @@ class Player():
         """
         self.coin_type = coin_type
     
+
     
 class HumanPlayer(Player):
     """A class that represents a human player in the game"""
@@ -42,6 +50,8 @@ class HumanPlayer(Player):
         Initialize a human player with their coin type
         """
         Player.__init__(self, coin_type)
+        self._type = "human"
+        
         
         
 class ComputerPlayer(Player):
@@ -62,6 +72,12 @@ class ComputerPlayer(Player):
              self.player = DQNPlayer(coin_type, mode=mode, file_path=file_path, model=q_table)
         else:
             self.player = RandomPlayer(coin_type)
+            
+    def type(self):
+        """
+        Return the type of the inner player
+        """
+        return self.player.type()
         
     def complete_move(self, coin, board, game_logic, background):
         """
@@ -115,6 +131,7 @@ class RandomPlayer(Player):
         Initialize the computer player
         """
         Player.__init__(self, coin_type)
+        self._type = "random"
         
     def choose_action(self, state, actions):
         """
@@ -158,7 +175,7 @@ class QLearningPlayer(Player):
         
         self.last_state = None
         self.last_action = None
-        
+        self._type = "qlearner"
         if self.mode == 'playing':
             if q_table is None:
                 self.load_data()
@@ -290,6 +307,7 @@ class MinimaxPlayer(Player):
         Initialize the computer player
         """
         Player.__init__(self, coin_type)
+        self._type = "minimax"
         
     def choose_action(self, state, actions):
         """
@@ -308,6 +326,7 @@ class DQNPlayer(Player):
 
     def __init__(self, coin_type, mode='learning', epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995, alpha=0.001, gamma=0.99, file_path="RL/dqn_model.keras", model=None):
         Player.__init__(self, coin_type)
+        self._type = "dqn"
         self.state_size = 42 # 6 rows * 7 cols
         self.action_size = 7
         self.memory = deque(maxlen=2000)

@@ -31,8 +31,6 @@ class GameLogic():
             self.winner_value = player_value
             
         return ( player_won or self.board.check_board_filled() )
-        
-        
     
     def search_win(self, last_visited_nodes, representation):
         """
@@ -96,21 +94,10 @@ class GameView(object):
         self.game_board = Board(BOARD_SIZE[0], BOARD_SIZE[1])
         (self.board_rows, self.board_cols) = self.game_board.get_dimensions()
         self.game_logic = GameLogic(self.game_board)
-        first_coin_type = random.randint(1,2)
-        second_coin_type = 2 if first_coin_type == 1 else 1 
+        first_coin_type = 1
+        second_coin_type = 2
         
-        if game_mode == "single":
-            self.p1 = HumanPlayer(first_coin_type)
-            if (self.trainedComputer == None):
-                self.p2 = ComputerPlayer(second_coin_type, "qlearner")
-                self.trainedComputer = self.p2
-            else:
-                self.trainedComputer.set_coin_type(second_coin_type)
-                self.p2 = self.trainedComputer
-        elif game_mode == "two_player":
-            self.p1 = HumanPlayer(first_coin_type)
-            self.p2 = HumanPlayer(second_coin_type)
-        elif game_mode == "minimax":
+        if game_mode == "minimax":
             self.p1 = ComputerPlayer(first_coin_type, "minimax")
             self.p2 = ComputerPlayer(second_coin_type, "random")
         elif game_mode == "train_rl":
@@ -127,15 +114,6 @@ class GameView(object):
                 self.trainedComputer.set_mode("playing")
             self.p1 = self.trainedComputer
             self.p2 = ComputerPlayer(second_coin_type, "random")
-        elif game_mode == "human_vs_minimax":
-            self.p1 = HumanPlayer(first_coin_type)
-            self.p2 = ComputerPlayer(second_coin_type, "minimax")
-        elif game_mode == "human_vs_dqn":
-            self.p1 = HumanPlayer(first_coin_type)
-            self.p2 = ComputerPlayer(second_coin_type, "dqn", mode="playing", file_path="RL/dqn_model3.keras")
-        elif game_mode == "human_vs_rl":
-            self.p1 = HumanPlayer(first_coin_type)
-            self.p2 = ComputerPlayer(second_coin_type, "qlearner", mode="playing", file_path="RL/q_data1.pkl")
         
     
     def main_menu(self):
@@ -145,7 +123,7 @@ class GameView(object):
         main_menu = True
         play_game = False
         selected_option = 0
-        options = ["two_player", "minimax", "machine_learning", "play_vs_ai", "quit"]
+        options = ["minimax", "machine_learning", "quit"]
         
         self.background.fill(WHITE)
         option_rects = self.draw_menu(selected_option, options)
@@ -178,10 +156,6 @@ class GameView(object):
                                 # After returning from sub-menu, redraw main menu
                                 self.background.fill(WHITE)
                                 option_rects = self.draw_menu(selected_option, options)
-                            elif options[selected_option] == "play_vs_ai":
-                                self.play_vs_ai_sub_menu()
-                                self.background.fill(WHITE)
-                                option_rects = self.draw_menu(selected_option, options)
                             else:
                                 play_game = True
                                 main_menu = False
@@ -208,13 +182,6 @@ class GameView(object):
                                 main_menu = False
                                 return
                             # After returning from sub-menu, redraw main menu
-                            self.background.fill(WHITE)
-                            option_rects = self.draw_menu(selected_option, options)
-                        elif options[selected_option] == "play_vs_ai":
-                            result = self.play_vs_ai_sub_menu()
-                            if result == 'quit':
-                                main_menu = False
-                                return
                             self.background.fill(WHITE)
                             option_rects = self.draw_menu(selected_option, options)
                         else:
@@ -354,110 +321,7 @@ class GameView(object):
             self.screen.blit(self.background, (0, 0))
 
 
-    def play_vs_ai_sub_menu(self):
-        """
-        Display the Play vs AI sub-menu
-        """
-        sub_menu = True
-        selected_option = 0
-        options = ["minimax", "dqn", "rl", "back"]
-        
-        self.background.fill(WHITE)
-        option_rects = self.draw_play_vs_ai_menu(selected_option, options)
-        
-        while sub_menu:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    sub_menu = False
-                    return 'quit'
 
-                if event.type == pygame.MOUSEMOTION:
-                    pos = pygame.mouse.get_pos()
-                    for i, rect in enumerate(option_rects):
-                        if rect.collidepoint(pos):
-                            if selected_option != i:
-                                selected_option = i
-                                self.background.fill(WHITE)
-                                option_rects = self.draw_play_vs_ai_menu(selected_option, options)
-                            break
-
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    pos = pygame.mouse.get_pos()
-                    for i, rect in enumerate(option_rects):
-                        if rect.collidepoint(pos):
-                            selected_option = i
-                            if options[selected_option] == "back":
-                                sub_menu = False
-                            else:
-                                # Start game with selected AI
-                                game_mode = f"human_vs_{options[selected_option]}"
-                                if options[selected_option] == "minimax":
-                                    # iter_input = self.get_input("Enter depth (1-5):")
-                                    pass
-                                
-                                result = self.run(game_mode)
-                                if result == 'quit':
-                                    return 'quit'
-                                elif result == 'main_menu':
-                                    return 'main_menu'
-                                sub_menu = False
-                            break
-
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        sub_menu = False
-                    elif event.key == pygame.K_UP or event.key == pygame.K_w:
-                        selected_option = (selected_option - 1) % len(options)
-                        self.background.fill(WHITE)
-                        option_rects = self.draw_play_vs_ai_menu(selected_option, options)
-                    elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
-                        selected_option = (selected_option + 1) % len(options)
-                        self.background.fill(WHITE)
-                        option_rects = self.draw_play_vs_ai_menu(selected_option, options)
-                    elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
-                        if options[selected_option] == "back":
-                            sub_menu = False
-                        else:
-                            game_mode = f"human_vs_{options[selected_option]}"
-                            result = self.run(game_mode)
-                            if result == 'quit':
-                                return 'quit'
-                            elif result == 'main_menu':
-                                return 'main_menu'
-                            sub_menu = False
-
-            milliseconds = self.clock.tick(self.fps)
-            pygame.display.flip()
-            self.screen.blit(self.background, (0, 0))
-
-    def draw_play_vs_ai_menu(self, selected_option, options):
-        """
-        Draw the elements for the Play vs AI sub-menu
-        """
-        font = pygame.font.SysFont(FONT_NAME, 60, bold=True)
-        self.title_surface = font.render('Select AI Opponent', True, BLACK)
-        fw, fh = font.size('Select AI Opponent')
-        self.background.blit(self.title_surface, ((self.width - fw) // 2, 100))
-        
-        menu_texts = {
-            "minimax": "Minimax",
-            "dqn": "Deep Q-Network",
-            "rl": "Q-Learning (Tabular)",
-            "back": "Back"
-        }
-        
-        font = pygame.font.SysFont(FONT_NAME, 40, bold=True)
-        
-        option_rects = []
-        for i, option in enumerate(options):
-            text = menu_texts[option]
-            color = RED if i == selected_option else BLACK
-            surface = font.render(text, True, color)
-            fw, fh = font.size(text)
-            rect = surface.get_rect(topleft=((self.width - fw) // 2, 250 + i * 50))
-            self.background.blit(surface, ((self.width - fw) // 2, 250 + i * 50))
-            option_rects.append(rect)
-        return option_rects
 
 
     def run(self, game_mode, iterations=1):
@@ -476,15 +340,6 @@ class GameView(object):
             turn_ended = False
             uninitialized = True
             current_type = random.randint(1,2)
-            if game_mode == "single" or game_mode.startswith("human_vs_"):
-                human_turn = (self.p1.get_coin_type() == current_type)
-                
-            elif game_mode == "two_player":
-                human_turn = True
-                
-            else:
-                human_turn = False
-                
             p1_turn = (self.p1.get_coin_type() == current_type)
                 
             (first_slot_X, first_slot_Y) = self.game_board.get_slot(0,0).get_position()
@@ -504,10 +359,9 @@ class GameView(object):
                 
                 current_player = self.p1 if p1_turn else self.p2
                 
-                if not human_turn:
-                    game_over = current_player.complete_move(coin, self.game_board, self.game_logic, self.background)
-                    coin_inserted = True
-                    uninitialized = True
+                game_over = current_player.complete_move(coin, self.game_board, self.game_logic, self.background)
+                coin_inserted = True
+                uninitialized = True
                     
                 # handle the keyboard events
                 for event in pygame.event.get():
@@ -518,34 +372,15 @@ class GameView(object):
                         if event.key == pygame.K_ESCAPE:
                             game_over = True
                             quit_run = True
-                        if (event.key == pygame.K_RIGHT or event.key == pygame.K_d) and human_turn:
-                            if (coin.get_column() + 1 < self.board_cols):
-                                coin.move_right(self.background)
-                            
-                        elif (event.key == pygame.K_LEFT or event.key == pygame.K_a) and human_turn:
-                            if (coin.get_column() - 1 >= 0):
-                                coin.move_left(self.background)
-                            
-                        elif (event.key == pygame.K_RETURN or event.key == pygame.K_SPACE) and human_turn and not coin_inserted:
-                            try:
-                                game_over = self.game_board.insert_coin(coin, self.background, self.game_logic)
-                                current_player.complete_move()
-                                uninitialized = True
-                                coin_inserted = True
-                                
-                            except ColumnFullException as e:
-                                pass
                 
                 if game_over:
                     winner = self.game_logic.determine_winner_name()
                     winner_value = self.game_logic.get_winner()
-                    if (winner_value > 0 and game_mode in ["minimax", "train_rl", "play_rl", "human_vs_minimax", "human_vs_dqn", "human_vs_rl"]):
+                    if (winner_value > 0 and game_mode in ["minimax", "train_rl", "play_rl"]):
                         self.win_list[winner_value - 1] += 1
                     game_over_screen = True
                     
                 if coin_inserted:
-                    if game_mode == "single" or game_mode.startswith("human_vs_"):
-                        human_turn = not human_turn
                     current_type = 1 if current_type == 2 else 2 
                     p1_turn = not p1_turn
                 
@@ -576,9 +411,9 @@ class GameView(object):
                          
     
                 # Draw Legend and Stats
-                if game_mode in ["minimax", "train_rl", "play_rl", "human_vs_minimax", "human_vs_dqn", "human_vs_rl"]:
+                if game_mode in ["minimax", "train_rl", "play_rl"]:
                     # Clear area (top left corner)
-                    pygame.draw.rect(self.background, BLACK, (0, 0, 400, 100))
+                    pygame.draw.rect(self.background, BLACK, (0, 0, 800, 100))
                     self.draw_legend(game_mode)
                     self.draw_stats(games_played, initial_iterations)
 
@@ -595,7 +430,7 @@ class GameView(object):
                 
                 pygame.display.flip()
                 if game_mode == "train_rl":
-                    self.screen.blit(self.background, (0, 0), (0, 0, 400, 100))
+                    self.screen.blit(self.background, (0, 0), (0, 0, 800, 100))
                 else:
                     self.screen.blit(self.background, (0, 0))
                 
@@ -632,10 +467,8 @@ class GameView(object):
         self.background.blit(self.title_surface, ((self.width - fw) // 2, 100))
         
         menu_texts = {
-            "two_player": "2 Player Mode",
             "minimax": "Minimax vs Random",
             "machine_learning": "Machine Learning",
-            "play_vs_ai": "Play vs AI",
             "quit": "QUIT"
         }
         
@@ -683,23 +516,14 @@ class GameView(object):
     def draw_legend(self, game_mode):
         font = pygame.font.SysFont(FONT_NAME, 20, bold=True)
         if game_mode == "minimax":
-            p1_text = "P1: Minimax (Blue)"
-            p2_text = "P2: Random (Red)"
+            p1_text = f"P1: {self.p1.type()} (Blue)"
+            p2_text = f"P2: {self.p2.type()} (Red)"
         elif game_mode == "train_rl":
-            p1_text = "P1: DQN Agent (Blue)"
-            p2_text = "P2: DQN Agent (Red)"
+            p1_text = f"P1: {self.p1.type()} (Blue)"
+            p2_text = f"P2: {self.p2.type()} (Red)"
         elif game_mode == "play_rl":
-            p1_text = "P1: DQN Agent (Blue)"
-            p2_text = "P2: Random (Red)"
-        elif game_mode == "human_vs_minimax":
-            p1_text = "P1: Human (Blue)"
-            p2_text = "P2: Minimax (Red)"
-        elif game_mode == "human_vs_dqn":
-            p1_text = "P1: Human (Blue)"
-            p2_text = "P2: DQN Agent (Red)"
-        elif game_mode == "human_vs_rl":
-            p1_text = "P1: Human (Blue)"
-            p2_text = "P2: Q-Learning (Red)"
+            p1_text = f"P1: {self.p1.type()} (Blue)"
+            p2_text = f"P2: {self.p2.type()} (Red)"
         else:
             return
 
@@ -719,7 +543,7 @@ class GameView(object):
             p1_rate = (self.win_list[0] / total_games) * 100
             p2_rate = (self.win_list[1] / total_games) * 100
             
-        stats_text = f"Wins: P1 {self.win_list[0]} ({p1_rate:.1f}%) - P2 {self.win_list[1]} ({p2_rate:.1f}%)"
+        stats_text = f"Wins: P1 ({self.p1.type()}) {self.win_list[0]} ({p1_rate:.1f}%) - P2 ({self.p2.type()}) {self.win_list[1]} ({p2_rate:.1f}%)"
         stats_surface = font.render(stats_text, True, WHITE)
         self.background.blit(stats_surface, (10, 50))
 
