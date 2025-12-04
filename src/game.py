@@ -114,14 +114,15 @@ class GameView(object):
             self.p1 = ComputerPlayer(first_coin_type, "minimax")
             self.p2 = ComputerPlayer(second_coin_type, "random")
         elif game_mode == "train_rl":
-            self.p1 = ComputerPlayer(first_coin_type, "qlearner")
-            self.p2 = ComputerPlayer(second_coin_type, "qlearner")
+            self.p1 = ComputerPlayer(first_coin_type, "qlearner", mode="learning")
+            self.p2 = ComputerPlayer(second_coin_type, "qlearner", mode="learning")
         elif game_mode == "play_rl":
             # Assuming trainedComputer is already loaded or we create a new one
             if self.trainedComputer is None:
-                self.trainedComputer = ComputerPlayer(first_coin_type, "qlearner")
+                self.trainedComputer = ComputerPlayer(first_coin_type, "qlearner", mode="playing")
             else:
                 self.trainedComputer.set_coin_type(first_coin_type)
+                self.trainedComputer.set_mode("playing")
             self.p1 = self.trainedComputer
             self.p2 = ComputerPlayer(second_coin_type, "random")
         
@@ -187,7 +188,10 @@ class GameView(object):
                         if options[selected_option] == "quit":
                             main_menu = False
                         elif options[selected_option] == "machine_learning":
-                            self.ml_sub_menu()
+                            result = self.ml_sub_menu()
+                            if result == 'quit':
+                                main_menu = False
+                                return
                             # After returning from sub-menu, redraw main menu
                             self.background.fill(WHITE)
                             option_rects = self.draw_menu(selected_option, options)
@@ -204,6 +208,10 @@ class GameView(object):
         if play_game:
             if game_mode == "minimax":
                 iter_input = self.get_input("Enter number of iterations (or 'Infinity'):")
+                if iter_input is None:
+                    pygame.quit()
+                    return
+
                 try:
                     if iter_input.lower() == "infinity":
                         iterations = float('inf')
@@ -211,9 +219,14 @@ class GameView(object):
                         iterations = int(iter_input)
                 except ValueError:
                     iterations = 1
-                self.run(game_mode, iterations)
+                result = self.run(game_mode, iterations)
             else:
-                self.run(game_mode)
+                result = self.run(game_mode)
+            
+            if result == 'main_menu':
+                self.main_menu()
+            elif result == 'quit':
+                pygame.quit()
         else:
             pygame.quit()
 
@@ -232,8 +245,7 @@ class GameView(object):
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     sub_menu = False
-                    pygame.quit()
-                    return
+                    return 'quit'
 
                 if event.type == pygame.MOUSEMOTION:
                     pos = pygame.mouse.get_pos()
@@ -254,16 +266,26 @@ class GameView(object):
                                 sub_menu = False
                             elif options[selected_option] == "train":
                                 iter_input = self.get_input("Enter number of matches to train:")
+                                if iter_input is None:
+                                    return 'quit'
                                 try:
                                     iterations = int(iter_input)
                                 except ValueError:
                                     iterations = 100
-                                self.run("train_rl", iterations)
+                                result = self.run("train_rl", iterations)
+                                if result == 'quit':
+                                    return 'quit'
+                                elif result == 'main_menu':
+                                    return 'main_menu'
                                 sub_menu = False # Return to main menu after training? Or stay? User didn't specify. Let's return.
                             elif options[selected_option] == "play":
                                 # Prompt to load agent (placeholder)
                                 print("Loading default RL agent...")
-                                self.run("play_rl", float('inf')) # Play until quit
+                                result = self.run("play_rl", float('inf')) # Play until quit
+                                if result == 'quit':
+                                    return 'quit'
+                                elif result == 'main_menu':
+                                    return 'main_menu'
                                 sub_menu = False
                             break
 
@@ -283,16 +305,26 @@ class GameView(object):
                             sub_menu = False
                         elif options[selected_option] == "train":
                             iter_input = self.get_input("Enter number of matches to train:")
+                            if iter_input is None:
+                                return 'quit'
                             try:
                                 iterations = int(iter_input)
                             except ValueError:
                                 iterations = 100
-                            self.run("train_rl", iterations)
+                            result = self.run("train_rl", iterations)
+                            if result == 'quit':
+                                return 'quit'
+                            elif result == 'main_menu':
+                                return 'main_menu'
                             sub_menu = False # Return to main menu after training? Or stay? User didn't specify. Let's return.
                         elif options[selected_option] == "play":
                             # Prompt to load agent (placeholder)
                             print("Loading default RL agent...")
-                            self.run("play_rl", float('inf')) # Play until quit
+                            result = self.run("play_rl", float('inf')) # Play until quit
+                            if result == 'quit':
+                                return 'quit'
+                            elif result == 'main_menu':
+                                return 'main_menu'
                             sub_menu = False
 
             milliseconds = self.clock.tick(self.fps)
@@ -394,10 +426,20 @@ class GameView(object):
                     self.draw_legend(game_mode)
                     self.draw_stats()
 
-                milliseconds = self.clock.tick(self.fps)
-                self.playtime += milliseconds / 1000.0
+                if game_mode == "train_rl":
+                    # Run as fast as possible for training
+                    pass
+                elif game_mode in ["minimax", "play_rl"]:
+                    # Run faster for AI viewing
+                    milliseconds = self.clock.tick(60) # Increase to 60 FPS or higher
+                    self.playtime += milliseconds / 1000.0
+                else:
+                    milliseconds = self.clock.tick(self.fps)
+                    self.playtime += milliseconds / 1000.0
+                
                 pygame.display.flip()
-                self.screen.blit(self.background, (0, 0))
+                if game_mode != "train_rl":
+                    self.screen.blit(self.background, (0, 0))
                 
             if quit_run:
                 break
@@ -411,14 +453,16 @@ class GameView(object):
             # self.main_menu() # Don't go back to main menu automatically, let it finish
         
         if iterations != float('inf') and game_mode not in ["train_rl", "play_rl", "minimax"]:
-             self.game_over_view(winner)
+             return self.game_over_view(winner)
         elif iterations == float('inf') and game_mode in ["play_rl", "minimax"]:
              # If infinity, we just keep playing, but if we break out of loop (e.g. quit), we go here.
              # Actually, if we break out of loop, we probably want to go back to menu or quit.
-             pass
+             if quit_run:
+                 return 'quit'
+             return 'main_menu'
         
         else:
-            self.game_over_view(winner)
+            return self.game_over_view(winner)
         
     def draw_menu(self, selected_option, options):
         """
@@ -572,10 +616,10 @@ class GameView(object):
             self.screen.blit(self.background, (0, 0))            
             
         if not main_menu:
-            pygame.quit()
+            return 'quit'
             
         else:
-            self.main_menu()        
+            return 'main_menu'        
         
     
     def draw_game_over(self, winner, selected_option=None):
@@ -634,8 +678,7 @@ class GameView(object):
         while input_active:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    pygame.quit()
-                    return "1" # Default fallback
+                    return None # Signal quit
                 
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN:
