@@ -2,6 +2,9 @@ import random
 import math
 import pickle
 import os
+import numpy as np
+import tensorflow as tf
+from collections import deque
 
 class Player():
     """A class that represents a player in the game"""
@@ -44,7 +47,7 @@ class HumanPlayer(Player):
 class ComputerPlayer(Player):
     """A class that represents an AI player in the game"""
     
-    def __init__(self, coin_type, player_type, mode='learning'):
+    def __init__(self, coin_type, player_type, mode='learning', file_path="RL/q_data1.pkl", q_table=None):
         """
         Initialize an AI with the proper type which are one of Random and 
         Q-learner currently
@@ -54,7 +57,9 @@ class ComputerPlayer(Player):
         elif (player_type == "minimax"):
             self.player = MinimaxPlayer(coin_type)
         elif (player_type == "rl" or player_type == "qlearner"):
-            self.player = QLearningPlayer(coin_type, mode=mode)
+            self.player = QLearningPlayer(coin_type, mode=mode, file_path=file_path, q_table=q_table)
+        elif (player_type == "dqn"):
+             self.player = DQNPlayer(coin_type, mode=mode, file_path=file_path, model=q_table)
         else:
             self.player = RandomPlayer(coin_type)
         
@@ -66,10 +71,18 @@ class ComputerPlayer(Player):
         actions = board.get_available_actions()
         state = board.get_state()
         chosen_action = self.choose_action(state, actions)
+        
+        # Learn from the *previous* move based on the current state (before this new move)
+        # We pass the current state because for the *previous* move, this is the "result state"
+        self.player.learn(state, actions, chosen_action, False, game_logic)
+        
         coin.move_right(background, chosen_action)
         coin.set_column(chosen_action)
         game_over = board.insert_coin(coin, background, game_logic)
-        self.player.learn(board, actions, chosen_action, game_over, game_logic)
+        
+        # If this move won the game, we need to learn immediately
+        if game_over:
+             self.player.learn(state, actions, chosen_action, True, game_logic)
         
         return game_over
     
@@ -124,21 +137,31 @@ class RandomPlayer(Player):
 class QLearningPlayer(Player):
     """A class that represents a Q-learning AI player in the game"""
 
-    def __init__(self, coin_type, mode='learning', epsilon=0.2, alpha=0.3, gamma=0.9, file_path="RL/q_data1.pkl"):
+    def __init__(self, coin_type, mode='learning', epsilon=0.2, alpha=0.3, gamma=0.9, file_path="RL/q_data1.pkl", q_table=None):
         """
         Initialize a Q-learner with parameters epsilon, alpha and gamma
         and its coin type
         """
         Player.__init__(self, coin_type)
-        self.q = {}
+        if q_table is not None:
+            self.q = q_table
+        else:
+            self.q = {}
         self.epsilon = epsilon # e-greedy chance of random exploration
         self.alpha = alpha # learning rate
         self.gamma = gamma # discount factor for future rewards 
         self.mode = mode
         self.file_path = file_path
         
+        self.mode = mode
+        self.file_path = file_path
+        
+        self.last_state = None
+        self.last_action = None
+        
         if self.mode == 'playing':
-            self.load_data()
+            if q_table is None:
+                self.load_data()
             self.epsilon = 0
 
     def set_mode(self, mode):
@@ -173,46 +196,64 @@ class QLearningPlayer(Player):
             best_actions = [actions[i] for i, q_val in enumerate(q_values) if q_val == max_q]
             return random.choice(best_actions)
                 
-    def learn(self, board, actions, chosen_action, game_over, game_logic):
+    def learn(self, current_state, actions, chosen_action, game_over, game_logic):
         """
-        Determine the reward based on its current chosen action and update
-        the Q table using the reward recieved and the maximum future reward
-        based on the resulting state due to the chosen action
+        Update Q-values.
+        If game_over is True, it means the current move won the game.
+        If game_over is False, we update the Q-value for the *previous* move using the current state.
         """
         if self.mode == 'playing':
             return
 
-        reward = 0
-        if (game_over):
-            win_value = game_logic.get_winner()
-            if win_value == 0: # Draw
-                reward = 0.5
-            elif win_value == self.coin_type: # Win
+        if game_over:
+            # Game ended. Determine reward based on outcome.
+            winner = game_logic.get_winner()
+            if winner == self.coin_type:
                 reward = 50
-            else: # Loss
-                reward = -50
-        else:
-            reward = -1 # Penalty for not ending the game
-            
-        prev_state = board.get_prev_state()
-        prev = self.getQ(prev_state, chosen_action)
-        result_state = board.get_state()
-        
-        # If the game is over, there are no future actions, so maxqnew is 0
-        if game_over:
-            maxqnew = 0
-        else:
-            # Get available actions for the new state
-            next_actions = board.get_available_actions()
-            if not next_actions: # No available actions, game might be a draw or full
-                maxqnew = 0
+            elif winner == 0: # Tie
+                reward = 0.5
             else:
-                maxqnew = max([self.getQ(result_state, a) for a in next_actions])
-                
-        self.q[(prev_state, chosen_action)] = prev + self.alpha * ((reward + self.gamma*maxqnew) - prev)
-        
-        if game_over:
+                reward = -50 # Should not strictly happen if I just moved, but good fallback
+
+            prev = self.getQ(current_state, chosen_action)
+            maxqnew = 0 # Terminal state
+            self.q[(current_state, chosen_action)] = prev + self.alpha * ((reward + self.gamma * maxqnew) - prev)
             self.save_data()
+            # Reset last state/action as the episode is over
+            self.last_state = None
+            self.last_action = None
+        else:
+            # Delayed update: Update the *previous* move based on the current state (which is the result of prev move + opponent move)
+            if self.last_state is not None and self.last_action is not None:
+                reward = 0 # No immediate reward for intermediate steps (or small penalty if desired)
+                prev = self.getQ(self.last_state, self.last_action)
+                
+                # maxQ for the current state
+                q_values = [self.getQ(current_state, a) for a in actions]
+                maxqnew = max(q_values) if q_values else 0
+                
+                self.q[(self.last_state, self.last_action)] = prev + self.alpha * ((reward + self.gamma * maxqnew) - prev)
+            
+            # Store current state/action for the next update
+            self.last_state = current_state
+            self.last_action = chosen_action
+
+    def learn_terminal(self, reward):
+        """
+        Update the last move with a terminal reward (e.g. loss or draw).
+        This is called externally when the game ends and it's not this player's turn.
+        """
+        if self.mode == 'playing':
+            return
+            
+        if self.last_state is not None and self.last_action is not None:
+            prev = self.getQ(self.last_state, self.last_action)
+            maxqnew = 0 # Terminal state
+            self.q[(self.last_state, self.last_action)] = prev + self.alpha * ((reward + self.gamma * maxqnew) - prev)
+            self.save_data()
+            
+        self.last_state = None
+        self.last_action = None
 
     def save_data(self):
         """
@@ -261,3 +302,200 @@ class MinimaxPlayer(Player):
         placeholder for minimax player
         """
         pass
+
+class DQNPlayer(Player):
+    """A class that represents a Deep Q-Network AI player"""
+
+    def __init__(self, coin_type, mode='learning', epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995, alpha=0.001, gamma=0.99, file_path="RL/dqn_model.keras", model=None):
+        Player.__init__(self, coin_type)
+        self.state_size = 42 # 6 rows * 7 cols
+        self.action_size = 7
+        self.memory = deque(maxlen=2000)
+        self.gamma = gamma    # discount rate
+        self.epsilon = epsilon  # exploration rate
+        self.epsilon_min = epsilon_min
+        self.epsilon_decay = epsilon_decay
+        self.learning_rate = alpha
+        self.mode = mode
+        self.file_path = file_path
+        
+        self.last_state = None
+        self.last_action = None
+        
+        if model is not None:
+            self.model = model
+        else:
+            self.model = self._build_model()
+            
+        if self.mode == 'playing':
+            self.load_data()
+            self.epsilon = 0
+
+    def _build_model(self):
+        # Neural Net for Deep-Q learning Model
+        model = tf.keras.Sequential()
+        model.add(tf.keras.layers.Input(shape=(self.state_size,)))
+        model.add(tf.keras.layers.Dense(24, activation='relu'))
+        model.add(tf.keras.layers.Dense(24, activation='relu'))
+        model.add(tf.keras.layers.Dense(self.action_size, activation='linear'))
+        model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate))
+        return model
+
+    def set_mode(self, mode):
+        self.mode = mode
+        if self.mode == 'playing':
+            self.epsilon = 0
+        else:
+            self.epsilon = 1.0 # Reset or keep?
+
+    def _preprocess_state(self, state):
+        # Flatten the 2D board state into a 1D array
+        # State is a tuple of tuples, need to convert to numpy array
+        flat_state = np.array(state).flatten()
+        # Normalize? 0, 1, 2 -> maybe map to 0, 1, -1 or just keep as is.
+        # Let's map 0->0, 1->1, 2->-1 if we are player 1, else flip.
+        # For now, simple flatten.
+        return np.reshape(flat_state, [1, self.state_size])
+
+    def choose_action(self, state, actions):
+        if np.random.rand() <= self.epsilon:
+            return random.choice(actions)
+        
+        processed_state = self._preprocess_state(state)
+        act_values = self.model.predict(processed_state, verbose=0)
+        
+        # Filter out invalid actions
+        # Set Q-values of invalid actions to -infinity so they are not chosen
+        q_values = act_values[0]
+        for i in range(self.action_size):
+            if i not in actions:
+                q_values[i] = -np.inf
+                
+        return np.argmax(q_values)
+
+    def learn(self, current_state, actions, chosen_action, game_over, game_logic):
+        if self.mode == 'playing':
+            return
+
+        # We need to store (state, action, reward, next_state, done)
+        # But learn() is called *after* the move.
+        # So 'current_state' passed here is actually the state *before* the move?
+        # Let's check ComputerPlayer.complete_move:
+        # state = board.get_state() (State BEFORE move)
+        # chosen_action = ...
+        # self.player.learn(state, actions, chosen_action, False, game_logic) (Learn called with State BEFORE move)
+        
+        # Wait, the original Q-learning implementation had a delayed update.
+        # "Learn from the *previous* move based on the current state"
+        
+        # For DQN, we usually store transitions (s, a, r, s', done) in memory and replay.
+        
+        # If game_over is True:
+        # We just made a winning move.
+        # Transition: (last_state, last_action, REWARD, current_state(terminal), True)
+        # But wait, if we win, there is no next state effectively.
+        
+        # Let's adapt to the existing call structure.
+        
+        # If game_over:
+        # This move won.
+        # We can store (current_state, chosen_action, reward, None, True)
+        winner = game_logic.get_winner()
+        if winner == self.coin_type:
+            reward = 1.0
+        elif winner == 0:
+            reward = 0.5
+        else:
+            reward = -1.0
+            
+        if game_over:
+             processed_state = self._preprocess_state(current_state)
+             self.remember(processed_state, chosen_action, reward, None, True)
+             self.replay(32)
+             self.save_data()
+             return
+
+        # If not game_over:
+        # We just made a move. We don't know the reward yet (unless we use intermediate rewards).
+        # We don't know the next state yet (opponent hasn't moved).
+        # Actually, in Connect 4, the "next state" for the agent is the state *after* the opponent moves.
+        
+        # So we need to buffer the *current* move and wait for the *next* turn to complete the transition.
+        
+        # However, the existing `learn` call structure in `ComputerPlayer` is:
+        # 1. `learn(state, ..., False)` (Before move execution? No, line 72 in player.py)
+        #    "Learn from the *previous* move based on the current state (before this new move)"
+        #    So `state` passed here is the result of (My Prev Move + Opponent Move).
+        #    So yes, this `state` is the `next_state` for the *previous* action.
+        
+        # 2. `learn(state, ..., True)` (After winning move)
+        
+        # Let's use `self.last_state` and `self.last_action` like the QLearningPlayer.
+        
+        processed_state = self._preprocess_state(current_state)
+        
+        if self.last_state is not None and self.last_action is not None:
+            # We have a pending transition from the previous turn.
+            # The `current_state` is the `next_state` for that transition.
+            # Reward is 0 (or small step penalty) because game didn't end.
+            self.remember(self.last_state, self.last_action, 0.0, processed_state, False)
+            self.replay(32)
+            
+        self.last_state = processed_state
+        self.last_action = chosen_action
+
+    def learn_terminal(self, reward):
+        if self.mode == 'playing':
+            return
+        # Called when game ends and it wasn't my turn (Loss or Tie triggered by opponent)
+        if self.last_state is not None and self.last_action is not None:
+             # Normalize reward? 50 -> 1, -50 -> -1, 0.5 -> 0.01?
+             # Let's stick to small range for NN. 1.0, -1.0, 0.0.
+             if reward > 10: r = 1.0
+             elif reward < -10: r = -1.0
+             else: r = 0.0 # Tie?
+             
+             # Actually, if I lost, reward is -1.
+             
+             self.remember(self.last_state, self.last_action, r, None, True)
+             self.replay(32)
+             self.save_data()
+             
+        self.last_state = None
+        self.last_action = None
+
+    def remember(self, state, action, reward, next_state, done):
+        self.memory.append((state, action, reward, next_state, done))
+
+    def replay(self, batch_size):
+        if len(self.memory) < batch_size:
+            return
+        minibatch = random.sample(self.memory, batch_size)
+        for state, action, reward, next_state, done in minibatch:
+            target = reward
+            if not done and next_state is not None:
+                target = (reward + self.gamma *
+                          np.amax(self.model.predict(next_state, verbose=0)[0]))
+            target_f = self.model.predict(state, verbose=0)
+            target_f[0][action] = target
+            self.model.fit(state, target_f, epochs=1, verbose=0)
+            
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
+    def save_data(self):
+        try:
+            directory = os.path.dirname(self.file_path)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory)
+            self.model.save(self.file_path)
+        except Exception as e:
+            print(f"Error saving DQN model: {e}")
+
+    def load_data(self):
+        if os.path.exists(self.file_path):
+            try:
+                self.model = tf.keras.models.load_model(self.file_path)
+                print("DQN model loaded.")
+            except Exception as e:
+                print(f"Error loading DQN model: {e}")
