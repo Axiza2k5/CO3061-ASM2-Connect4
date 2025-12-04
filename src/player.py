@@ -57,7 +57,7 @@ class HumanPlayer(Player):
 class ComputerPlayer(Player):
     """A class that represents an AI player in the game"""
     
-    def __init__(self, coin_type, player_type, mode='learning', file_path="RL/q_data1.pkl", q_table=None):
+    def __init__(self, coin_type, player_type, mode='learning', file_path="RL/dqn_model3.keras", q_table=None):
         """
         Initialize an AI with the proper type which are one of Random and 
         Q-learner currently
