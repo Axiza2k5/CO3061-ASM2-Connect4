@@ -101,9 +101,9 @@ class GameView(object):
             self.p1 = ComputerPlayer(first_coin_type, "minimax")
             self.p2 = ComputerPlayer(second_coin_type, "random")
         elif game_mode == "train_rl":
-            self.p1 = ComputerPlayer(first_coin_type, "dqn", mode="learning", file_path="RL/dqn_model3.keras")
+            self.p1 = ComputerPlayer(first_coin_type, "dqn", mode="learning", file_path="RL/dqn_model4.keras")
             # Self-play: p2 shares the model with p1
-            self.p2 = ComputerPlayer(second_coin_type, "dqn", mode="learning", file_path="RL/dqn_model3.keras", q_table=self.p1.player.model)
+            self.p2 = ComputerPlayer(second_coin_type, "dqn", mode="learning", file_path="RL/dqn_model4.keras", q_table=self.p1.player.model)
         elif game_mode == "play_rl":
             # Assuming trainedComputer is already loaded or we create a new one
             if self.trainedComputer is None:
@@ -319,9 +319,6 @@ class GameView(object):
             milliseconds = self.clock.tick(self.fps)
             pygame.display.flip()
             self.screen.blit(self.background, (0, 0))
-
-
-
 
 
     def run(self, game_mode, iterations=1):
