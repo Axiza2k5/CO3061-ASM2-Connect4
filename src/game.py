@@ -85,15 +85,21 @@ class GameView(object):
         self.font = pygame.font.SysFont(FONT_NAME, 20, bold=True)
         self.trainedComputer = None
         self.win_list = [0,0]
-        
+    
     def initialize_game_variables(self, game_mode):
         """
-        Initialize the game board and the GameLogic object
+        Khởi tạo bàn cờ.
+        LƯU Ý: Không khởi tạo Player ở đây nữa để tránh reset não AI.
         """
-        from src.player import ComputerPlayer
         self.game_board = Board(BOARD_SIZE[0], BOARD_SIZE[1])
         (self.board_rows, self.board_cols) = self.game_board.get_dimensions()
         self.game_logic = GameLogic(self.game_board)
+        
+    def initialize_players(self, game_mode):
+        """
+        Initializ the GameLogic object
+        """
+        from src.player import ComputerPlayer
         first_coin_type = 1
         second_coin_type = 2
         
@@ -101,13 +107,13 @@ class GameView(object):
             self.p1 = ComputerPlayer(first_coin_type, "minimax")
             self.p2 = ComputerPlayer(second_coin_type, "random")
         elif game_mode == "train_rl":
-            self.p1 = ComputerPlayer(first_coin_type, "dqn", mode="learning", file_path="RL/dqn_model4.keras")
+            self.p1 = ComputerPlayer(first_coin_type, "dqn", mode="learning", file_path="RL/dqn_model5.keras")
             # Self-play: p2 shares the model with p1
-            self.p2 = ComputerPlayer(second_coin_type, "dqn", mode="learning", file_path="RL/dqn_model4.keras", q_table=self.p1.player.model)
+            self.p2 = ComputerPlayer(second_coin_type, "dqn", mode="learning", file_path="RL/dqn_model5.keras", q_table=self.p1.player.model)
         elif game_mode == "play_rl":
             # Assuming trainedComputer is already loaded or we create a new one
             if self.trainedComputer is None:
-                self.trainedComputer = ComputerPlayer(first_coin_type, "dqn", mode="playing", file_path="RL/dqn_model3.keras")
+                self.trainedComputer = ComputerPlayer(first_coin_type, "dqn", mode="playing", file_path="RL/dqn_model4.keras")
                 print("Loading default DQN agent...")
             else:
                 self.trainedComputer.set_coin_type(first_coin_type)
@@ -328,39 +334,44 @@ class GameView(object):
         self.win_list = [0,0]
         initial_iterations = iterations
         games_played = 0
+        
+        # 1. Khởi tạo Player 1 lần duy nhất (QUAN TRỌNG)
+        self.initialize_players(game_mode)
+
         while (iterations > 0 or iterations == float('inf')):
             games_played += 1
+            
+            # 2. Reset bàn cờ mỗi ván
             self.initialize_game_variables(game_mode)
+            
             self.background.fill(BLACK)
             self.game_board.draw(self.background)
             game_over = False
-            turn_ended = False
             uninitialized = True
             current_type = random.randint(1,2)
             p1_turn = (self.p1.get_coin_type() == current_type)
                 
             (first_slot_X, first_slot_Y) = self.game_board.get_slot(0,0).get_position()
             coin = Coin(current_type)
-            game_over_screen = False
             quit_run = False
+            
+            # --- GAME LOOP (Xử lý từng nước đi) ---
             while not game_over:
-                         
                 if uninitialized:
                     coin = Coin(current_type)
                     coin.set_position(first_slot_X, first_slot_Y - SLOT_SIZE)
                     coin.set_column(0)
                     uninitialized = False
                     coin_inserted = False
-                                   
+                                    
                 coin.draw(self.background)
-                
                 current_player = self.p1 if p1_turn else self.p2
                 
+                # AI/Human đi
                 game_over = current_player.complete_move(coin, self.game_board, self.game_logic, self.background)
                 coin_inserted = True
                 uninitialized = True
                     
-                # handle the keyboard events
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         game_over = True
@@ -371,88 +382,86 @@ class GameView(object):
                             quit_run = True
                 
                 if game_over:
-                    winner = self.game_logic.determine_winner_name()
+                    # Logic xử lý thắng thua đã chuẩn
                     winner_value = self.game_logic.get_winner()
                     if (winner_value > 0 and game_mode in ["minimax", "train_rl", "play_rl"]):
                         self.win_list[winner_value - 1] += 1
-                    game_over_screen = True
-                    
-                if coin_inserted:
-                    current_type = 1 if current_type == 2 else 2 
-                    p1_turn = not p1_turn
-                
-                if game_over:
-                    # Handle terminal updates for Q-learning
-                    # The player who made the winning move has already learned in complete_move
-                    # We need to ensure the losing player (or the other player in a draw) also learns
                     
                     winner_val = self.game_logic.get_winner()
                     
-                    # Determine rewards
+                    # Reward chuẩn theo Paper
                     if winner_val == 0: # Tie
-                        p1_reward = 0.5
-                        p2_reward = 0.5
+                        p1_reward = 0; p2_reward = 0
                     elif winner_val == 1: # P1 won
-                        p1_reward = 50
-                        p2_reward = -50
+                        p1_reward = 10; p2_reward = -10
                     else: # P2 won
-                        p1_reward = -50
-                        p2_reward = 50
+                        p1_reward = -10; p2_reward = 10
                         
-                    # Apply terminal updates
-                    # Note: The winner's last_state is None because it was reset in learn(), so learn_terminal will be a no-op for them, which is correct.
+                    # Terminal Update
                     if hasattr(self.p1, 'player') and hasattr(self.p1.player, 'learn_terminal'):
                         self.p1.player.learn_terminal(p1_reward)
                     if hasattr(self.p2, 'player') and hasattr(self.p2.player, 'learn_terminal'):
                         self.p2.player.learn_terminal(p2_reward)
-                         
-    
-                # Draw Legend and Stats
-                if game_mode in ["minimax", "train_rl", "play_rl"]:
-                    # Clear area (top left corner)
+                
+                if coin_inserted:
+                    current_type = 1 if current_type == 2 else 2 
+                    p1_turn = not p1_turn
+
+                # --- VẼ MÀN HÌNH ---
+                if game_mode == "train_rl":
+                    # Chỉ vẽ mỗi 100 ván để train cho nhanh
+                    if games_played % 100 == 0 or game_over:
+                        # Draw Stats đè lên để thấy tiến độ
+                        pygame.draw.rect(self.background, BLACK, (0, 0, 800, 100))
+                        self.draw_legend(game_mode)
+                        self.draw_stats(games_played, initial_iterations)
+                        
+                        pygame.display.flip()
+                        self.screen.blit(self.background, (0, 0))
+                    # Không gọi clock.tick() khi train
+                else:
+                    # Chế độ chơi thường
                     pygame.draw.rect(self.background, BLACK, (0, 0, 800, 100))
                     self.draw_legend(game_mode)
                     self.draw_stats(games_played, initial_iterations)
-
-                if game_mode == "train_rl":
-                    # Run as fast as possible for training
-                    pass
-                elif game_mode in ["minimax", "play_rl"]:
-                    # Run faster for AI viewing
-                    milliseconds = self.clock.tick(60) # Increase to 60 FPS or higher
-                    self.playtime += milliseconds / 1000.0
-                else:
-                    milliseconds = self.clock.tick(self.fps)
-                    self.playtime += milliseconds / 1000.0
-                
-                pygame.display.flip()
-                if game_mode == "train_rl":
-                    self.screen.blit(self.background, (0, 0), (0, 0, 800, 100))
-                else:
+                    
+                    if game_mode in ["minimax", "play_rl"]:
+                        self.clock.tick(60) # 60 FPS cho mượt
+                    else:
+                        self.clock.tick(self.fps)
+                        
+                    pygame.display.flip()
                     self.screen.blit(self.background, (0, 0))
                 
-            if quit_run:
-                break
+                if quit_run:
+                    break
+
+            # --- KẾT THÚC 1 VÁN (Ngoài vòng lặp while not game_over) ---
+            
+            # LƯU DATA Ở ĐÂY LÀ HỢP LÝ NHẤT (Chỉ lưu 1 lần khi xong ván)
+            if game_mode == "train_rl":
+                # Lưu mỗi 50 ván hoặc khi kết thúc chuỗi train
+                if games_played % 50 == 0 or iterations == 1:
+                    print(f"Saving model at episode {games_played}...")
+                    self.p1.player.save_data()
 
             if iterations != float('inf'):
                 iterations -= 1
             
-        if game_mode == "train_rl":
-            index = self.win_list.index(max(self.win_list))
-            self.trainedComputer = self.p1 if index == 0 else self.p2
-            # self.main_menu() # Don't go back to main menu automatically, let it finish
-        
-        if iterations != float('inf') and game_mode not in ["train_rl", "play_rl", "minimax"]:
-             return self.game_over_view(winner)
-        elif iterations == float('inf') and game_mode in ["play_rl", "minimax"]:
-             # If infinity, we just keep playing, but if we break out of loop (e.g. quit), we go here.
-             # Actually, if we break out of loop, we probably want to go back to menu or quit.
-             if quit_run:
+            # Logic thoát hoặc hiển thị menu thắng thua
+            if quit_run:
+                 if game_mode == "train_rl":
+                     # Lưu lần cuối trước khi thoát cưỡng ép
+                     self.p1.player.save_data()
                  return 'quit'
-             return 'main_menu'
+
+            # Nếu không phải mode train thì hiện bảng Game Over
+            if game_mode not in ["train_rl", "play_rl", "minimax"] and iterations != float('inf'):
+                 winner = self.game_logic.determine_winner_name()
+                 return self.game_over_view(winner)
         
-        else:
-            return self.game_over_view(winner)
+        # Hết vòng lặp (iterations về 0)
+        return 'main_menu'
         
     def draw_menu(self, selected_option, options):
         """
@@ -678,29 +687,38 @@ class GameView(object):
                     return None # Signal quit
                 
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_RETURN:
+                    if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER: # Thêm Enter bàn phím số cho chắc
                         input_active = False
                     elif event.key == pygame.K_BACKSPACE:
                         user_text = user_text[:-1]
                     else:
-                        user_text += event.unicode
+                        # Chỉ nhận số để tránh lỗi nhập chữ lung tung lúc train
+                        # Nếu muốn nhập cả chữ thì bỏ điều kiện isdigit() đi
+                        if event.unicode.isdigit(): 
+                            user_text += event.unicode
             
+            # 1. Vẽ đè background trắng lên để xóa chữ cũ
             self.background.fill(WHITE)
             
-            # Draw Prompt
+            # 2. Vẽ Prompt
             prompt_surface = font.render(prompt, True, BLACK)
             self.background.blit(prompt_surface, (50, 150))
             
-            # Draw User Text
+            # 3. Vẽ User Text (Số đang nhập)
             text_surface = font.render(user_text, True, BLACK)
             self.background.blit(text_surface, (50, 200))
             
-            # Draw instructions
+            # 4. Vẽ hướng dẫn
             inst_surface = font.render("Press ENTER to confirm", True, RED)
             self.background.blit(inst_surface, (50, 300))
             
-            pygame.display.flip()
+            # 5. Đẩy background đã vẽ lên màn hình hiển thị
             self.screen.blit(self.background, (0, 0))
+            
+            # 6. Cập nhật màn hình
+            pygame.display.flip()
+            
+            # 7. Giới hạn FPS
             self.clock.tick(30)
             
-        return user_text 
+        return user_text

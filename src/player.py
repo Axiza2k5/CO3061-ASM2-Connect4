@@ -57,7 +57,7 @@ class HumanPlayer(Player):
 class ComputerPlayer(Player):
     """A class that represents an AI player in the game"""
     
-    def __init__(self, coin_type, player_type, mode='learning', file_path="RL/dqn_model3.keras", q_table=None):
+    def __init__(self, coin_type, player_type, mode='learning', file_path="RL/q_data1.pkl", q_table=None):
         """
         Initialize an AI with the proper type which are one of Random and 
         Q-learner currently
@@ -177,12 +177,12 @@ class MinimaxPlayer(Player):
 class DQNPlayer(Player):
     """A class that represents a Deep Q-Network AI player"""
 
-    def __init__(self, coin_type, mode='learning', epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995, alpha=0.001, gamma=0.99, file_path="RL/dqn_model.keras", model=None):
+    def __init__(self, coin_type, mode='learning', epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.9995, alpha=0.001, gamma=0.99, file_path="RL/dqn_model.keras", model=None):
         Player.__init__(self, coin_type)
         self._type = "dqn"
         self.state_size = 42 # 6 rows * 7 cols
         self.action_size = 7
-        self.memory = deque(maxlen=2000)
+        self.memory = deque(maxlen=5000)
         self.gamma = gamma    # discount rate
         self.epsilon = epsilon  # exploration rate
         self.epsilon_min = epsilon_min
@@ -207,8 +207,9 @@ class DQNPlayer(Player):
         # Neural Net for Deep-Q learning Model
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.Input(shape=(self.state_size,)))
-        model.add(tf.keras.layers.Dense(24, activation='relu'))
-        model.add(tf.keras.layers.Dense(24, activation='relu'))
+        model.add(tf.keras.layers.Dense(128, activation='relu'))
+        model.add(tf.keras.layers.Dense(128, activation='relu'))
+        model.add(tf.keras.layers.Dense(64, activation='relu'))
         model.add(tf.keras.layers.Dense(self.action_size, activation='linear'))
         model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate))
         return model
@@ -227,6 +228,13 @@ class DQNPlayer(Player):
         # Normalize? 0, 1, 2 -> maybe map to 0, 1, -1 or just keep as is.
         # Let's map 0->0, 1->1, 2->-1 if we are player 1, else flip.
         # For now, simple flatten.
+        
+        processed = np.zeros_like(flat_state)
+        my_coin = self.coin_type
+        opponent_coint = 1 if my_coin == 2 else 2
+        processed[flat_state == my_coin] = 1
+        processed[flat_state == opponent_coint] = -1
+        processed[flat_state == 0] = 0
         return np.reshape(flat_state, [1, self.state_size])
 
     def choose_action(self, state, actions):
@@ -274,11 +282,11 @@ class DQNPlayer(Player):
         # We can store (current_state, chosen_action, reward, None, True)
         winner = game_logic.get_winner()
         if winner == self.coin_type:
-            reward = 1.0
+            reward = 10.0
         elif winner == 0:
-            reward = 0.5
+            reward = 0.0
         else:
-            reward = -1.0
+            reward = -10.0
             
         if game_over:
              processed_state = self._preprocess_state(current_state)
@@ -323,8 +331,8 @@ class DQNPlayer(Player):
         if self.last_state is not None and self.last_action is not None:
              # Normalize reward? 50 -> 1, -50 -> -1, 0.5 -> 0.01?
              # Let's stick to small range for NN. 1.0, -1.0, 0.0.
-             if reward > 10: r = 1.0
-             elif reward < -10: r = -1.0
+             if reward > 10: r = 10.0
+             elif reward < -10: r = -10.0
              else: r = 0.0 # Tie?
              
              # Actually, if I lost, reward is -1.
@@ -343,15 +351,28 @@ class DQNPlayer(Player):
         if len(self.memory) < batch_size:
             return
         minibatch = random.sample(self.memory, batch_size)
-        for state, action, reward, next_state, done in minibatch:
-            target = reward
-            if not done and next_state is not None:
-                target = (reward + self.gamma *
-                          np.amax(self.model.predict(next_state, verbose=0)[0]))
-            target_f = self.model.predict(state, verbose=0)
-            target_f[0][action] = target
-            self.model.fit(state, target_f, epochs=1, verbose=0)
-            
+        # Chuyển đổi list of tuples thành các numpy array riêng biệt để xử lý song song
+        states = np.array([i[0] for i in minibatch])
+        states = np.squeeze(states) # Đảm bảo shape là (batch_size, 42) thay vì (batch_size, 1, 42)
+        
+        actions = np.array([i[1] for i in minibatch])
+        rewards = np.array([i[2] for i in minibatch])
+        next_states = np.array([i[3] if i[3] is not None else np.zeros((1, self.state_size)) for i in minibatch])
+        next_states = np.squeeze(next_states)
+        dones = np.array([i[4] for i in minibatch])
+
+        # Dự đoán Q-values hiện tại và tương lai cho cả batch cùng lúc (chỉ tốn 2 lần gọi predict)
+        # Tốc độ nhanh hơn gấp hàng chục lần so với vòng lặp
+        targets = self.model.predict_on_batch(states)
+        next_q_values = self.model.predict_on_batch(next_states)
+
+        # Tính toán Q-learning target: Q(s,a) = r + gamma * max(Q(s', a'))
+        # np.amax(next_q_values, axis=1) lấy giá trị lớn nhất của mỗi hàng
+        targets[range(batch_size), actions] = rewards + self.gamma * np.amax(next_q_values, axis=1) * (1 - dones)
+
+        # Train model một lần duy nhất cho cả batch
+        self.model.fit(states, targets, epochs=1, verbose=0)
+        
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
