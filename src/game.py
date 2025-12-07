@@ -107,13 +107,13 @@ class GameView(object):
             self.p1 = ComputerPlayer(first_coin_type, "minimax")
             self.p2 = ComputerPlayer(second_coin_type, "random")
         elif game_mode == "train_rl":
-            self.p1 = ComputerPlayer(first_coin_type, "dqn", mode="learning", file_path="RL/dqn_model5.keras")
+            self.p1 = ComputerPlayer(first_coin_type, "dqn", mode="learning", file_path="RL/dqn_model7.keras")
             # Self-play: p2 shares the model with p1
-            self.p2 = ComputerPlayer(second_coin_type, "dqn", mode="learning", file_path="RL/dqn_model5.keras", q_table=self.p1.player.model)
+            self.p2 = ComputerPlayer(second_coin_type, "dqn", mode="learning", file_path="RL/dqn_model7.keras", q_table=self.p1.player.model)
         elif game_mode == "play_rl":
             # Assuming trainedComputer is already loaded or we create a new one
             if self.trainedComputer is None:
-                self.trainedComputer = ComputerPlayer(first_coin_type, "dqn", mode="playing", file_path="RL/dqn_model4.keras")
+                self.trainedComputer = ComputerPlayer(first_coin_type, "dqn", mode="playing", file_path="RL/dqn_model6.keras")
                 print("Loading default DQN agent...")
             else:
                 self.trainedComputer.set_coin_type(first_coin_type)
