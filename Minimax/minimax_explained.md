@@ -34,6 +34,8 @@ Chú thích: `piece` là quân của người chơi hiện tại. (Player hoặc
   - Ưu tiên cột giữa: mỗi quân ở cột giữa cộng `6`. (Bởi vì cột giữa là vị trí quan trọng nhất) 
   - Cộng dồn điểm cho mọi cửa sổ 4 ô theo 4 hướng (ngang, dọc, chéo `/`, chéo `\`) bằng `_evaluate_window`.
 
+- `_is_terminal_node(board: List[List[int]], piece: int) -> bool`  
+  Kiểm tra xem node hiện tại có phải là node kết thúc hay không.
 
 ## Thuật toán Minimax với cắt tỉa alpha-beta
 
