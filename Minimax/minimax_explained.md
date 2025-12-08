@@ -49,7 +49,7 @@ Chú thích: `piece` là quân của người chơi hiện tại. (Player hoặc
 
 - `choose_best_action(state, piece, depth, allowed_actions) -> Optional[int]`  
   Điểm vào công khai dùng bởi `MinimaxPlayer`.  
-  - Sao chép bảng, lọc nước đi theo `allowed_actions` và cột còn trống.  
+  - Sao chép bảng, lọc nước đi theo `allowed_actions`.  
   - Sắp xếp nước đi theo ưu tiên gần giữa rồi gọi `_minimax` (bắt đầu ở vai trò maximizing).  
-  - Nếu cột do `_minimax` trả về không nằm trong `legal`, chọn phương án hợp lệ đầu tiên làm dự phòng. Trả `None` nếu không còn nước đi.
+  - Trả `None` nếu không còn nước đi.
 
