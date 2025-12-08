@@ -5,6 +5,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from collections import deque
+from Minimax.minimax import choose_best_action
 
 class Player():
     """A class that represents a player in the game"""
@@ -153,24 +154,28 @@ class RandomPlayer(Player):
 
 
 class MinimaxPlayer(Player):
-    """placeholder for minimax player"""
+    """A minimax-based AI player with alpha-beta pruning."""
     
-    def __init__(self, coin_type):
+    def __init__(self, coin_type, depth=4):
         """
-        Initialize the computer player
+        Initialize the minimax player.
+        depth: search depth for the minimax algorithm.
         """
         Player.__init__(self, coin_type)
         self._type = "minimax"
+        self.depth = depth
         
     def choose_action(self, state, actions):
         """
-        placeholder for minimax player
+        Choose the best action using minimax search.
+        Falls back to random selection if no action is found.
         """
-        return random.choice(actions)
+        action = choose_best_action(state, self.coin_type, self.depth, actions)
+        return action if action is not None else random.choice(actions)
                 
     def learn(self, board, actions, action, game_over, game_logic):
         """
-        placeholder for minimax player
+        Minimax player is not learning-based, so no update is required.
         """
         pass
 
