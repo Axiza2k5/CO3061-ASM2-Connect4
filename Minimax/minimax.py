@@ -35,33 +35,27 @@ def _winning_move(board: List[List[int]], piece: int) -> bool:
     """Kiểm tra 4 điều kiện thắng cho piece: ngang, dọc, chéo /, chéo \."""
     rows = len(board)
     cols = len(board[0])
-
-    return (
-        any(
-            # ngang
-            all(board[r][c + i] == piece for i in range(4))  
-            for r in range(rows)
-            for c in range(cols - 3)    # ô đầu tiên phải thuộc cột [0,2] để có thể tạo thành cửa sổ 4 ô liên tiếp
-        )
-        or any(
-            # dọc
-            all(board[r + i][c] == piece for i in range(4))
-            for c in range(cols)
-            for r in range(rows - 3)    # ô đầu tiên phải thuộc hàng [0,2] để có thể tạo thành cửa sổ 4 ô liên tiếp
-        )
-        or any(
-            # chéo /
-            all(board[r - i][c + i] == piece for i in range(4))
-            for r in range(3, rows)
-            for c in range(cols - 3)
-        )
-        or any(
-            # chéo \
-            all(board[r + i][c + i] == piece for i in range(4))
-            for r in range(rows - 3)
-            for c in range(cols - 3)
-        )
-    )
+    # Kiểm tra ngang
+    for r in range(rows):
+        for c in range(cols - 3):
+            if all(board[r][c + i] == piece for i in range(4)):
+                return True
+    # Kiểm tra dọc
+    for c in range(cols):
+        for r in range(rows - 3):
+            if all(board[r + i][c] == piece for i in range(4)):
+                return True
+    # Kiểm tra chéo /
+    for r in range(3, rows):
+        for c in range(cols - 3):
+            if all(board[r - i][c + i] == piece for i in range(4)):
+                return True
+    # Kiểm tra chéo \
+    for r in range(rows - 3):
+        for c in range(cols - 3):
+            if all(board[r + i][c + i] == piece for i in range(4)):
+                return True
+    return False
 
 
 def _evaluate_window(window: List[int], piece: int) -> int:
@@ -93,37 +87,45 @@ def _evaluate_window(window: List[int], piece: int) -> int:
 
 def _score_position(board: List[List[int]], piece: int) -> int:
     """Duyệt tất cả các cửa sổ 4 ô và tính điểm heuristic."""
+    score = 0
     rows = len(board)
     cols = len(board[0])
     center_col = cols // 2
 
-    center_bonus = sum(board[r][center_col] == piece for r in range(rows)) * 6
+    center_column_values = [board[r][center_col] for r in range(rows)]
+    center_count = center_column_values.count(piece)
+    score += center_count * 6
+    
+    for r in range(rows):
+        for c in range(cols - 3):
+            window = board[r][c : c + 4]
+            score += _evaluate_window(window, piece)
+            
+    for c in range(cols):
+        for r in range(rows - 3):
+            window = [board[r + i][c] for i in range(4)]
+            score += _evaluate_window(window, piece)
+            
+    for r in range(3, rows):
+        for c in range(cols - 3):
+            window = [board[r - i][c + i] for i in range(4)]
+            score += _evaluate_window(window, piece)
+            
+    for r in range(rows - 3):
+        for c in range(cols - 3):
+            window = [board[r + i][c + i] for i in range(4)]
+            score += _evaluate_window(window, piece)
+            
+    return score
 
-    horizontal = sum(
-        _evaluate_window(board[r][c : c + 4], piece)
-        for r in range(rows)
-        for c in range(cols - 3)
+def _is_terminal_node(board: List[List[int]], piece: int) -> bool:
+    """Kiểm tra xem node hiện tại có phải là node kết thúc hay không."""
+    opp = _opponent(piece)
+    return (
+        _winning_move(board, piece)
+        or _winning_move(board, opp)
+        or len(_valid_actions(board)) == 0
     )
-
-    vertical = sum(
-        _evaluate_window([board[r + i][c] for i in range(4)], piece)
-        for c in range(cols)
-        for r in range(rows - 3)
-    )
-
-    diag_pos = sum(
-        _evaluate_window([board[r - i][c + i] for i in range(4)], piece)
-        for r in range(3, rows)
-        for c in range(cols - 3)
-    )
-
-    diag_neg = sum(
-        _evaluate_window([board[r + i][c + i] for i in range(4)], piece)
-        for r in range(rows - 3)
-        for c in range(cols - 3)
-    )
-
-    return center_bonus + horizontal + vertical + diag_pos + diag_neg
 
 
 def _minimax(
@@ -140,14 +142,13 @@ def _minimax(
     valid_cols.sort(key=lambda c: abs(center - c))
     opp = _opponent(piece)
 
-    self_win = _winning_move(board, piece)
-    opp_win = _winning_move(board, opp)
-    if self_win:
-        return None, 1_000_000
-    if opp_win:
-        return None, -1_000_000
-    if depth == 0 or not valid_cols:
-        return None, _score_position(board, piece)
+    if depth == 0 or _is_terminal_node(board, piece):
+        if _winning_move(board, piece):
+            return None, 1_000_000
+        elif _winning_move(board, opp):
+            return None, -1_000_000
+        else:
+            return None, _score_position(board, piece)
 
     if maximizing_player:
         """Nhánh maximizing"""
@@ -189,8 +190,7 @@ def choose_best_action(
     Trả về cột tốt nhất để đi, hoặc None nếu không còn nước đi hợp lệ.
     """
     board = _copy_board(state)
-    allowed = set(allowed_actions)
-    legal = [c for c in _valid_actions(board) if c in allowed]
+    legal = [c for c in _valid_actions(board) if c in allowed_actions]
     if not legal:
         return None
 
