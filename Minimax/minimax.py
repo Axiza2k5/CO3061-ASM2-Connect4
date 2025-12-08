@@ -190,15 +190,11 @@ def choose_best_action(
     Trả về cột tốt nhất để đi, hoặc None nếu không còn nước đi hợp lệ.
     """
     board = _copy_board(state)
-    legal = [c for c in _valid_actions(board) if c in allowed_actions]
-    if not legal:
-        return None
 
-    # Sắp xếp nước đi để cắt tỉa tốt hơn (ưu tiên cột giữa)
-    legal.sort(key=lambda c: abs((len(board[0]) // 2) - c))
+    if not allowed_actions:
+        return None
+        
     best_col, _ = _minimax(board, depth, -math.inf, math.inf, True, piece)
-    if best_col not in legal:
-        # Trở về nước đi hợp lệ tốt nhất nếu cắt tỉa chọn một nước đi không hợp lệ
-        best_col = legal[0]
+    
     return best_col
 
