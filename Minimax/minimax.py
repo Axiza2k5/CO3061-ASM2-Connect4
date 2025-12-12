@@ -149,37 +149,82 @@ def _minimax(
             return None, -1_000_000
         else:
             return None, _score_position(board, piece)
-
-    if maximizing_player:
-        """Nhánh maximizing"""
-        value = -math.inf
-        best_col = random.choice(valid_cols) if valid_cols else None
-        for col in valid_cols:
-            temp_board = _copy_board(board)
-            _drop_piece(temp_board, col, piece)
-            _, new_score = _minimax(temp_board, depth - 1, alpha, beta, False, piece)
-            if new_score > value:
-                value = new_score
-                best_col = col
-            alpha = max(alpha, value)
-            if alpha >= beta:
-                break
-        return best_col, value
-
-    """Nhánh minimizing (giả lập đối thủ)"""
-    value = math.inf
-    best_col = random.choice(valid_cols) if valid_cols else None
+    
     for col in valid_cols:
+        from copy import deepcopy
+from math import inf
+from typing import List, Tuple, Optional
+
+def _minimax(
+    board: List[List[int]],
+    depth: int,
+    alpha: float,
+    beta: float,
+    maximizing_player: bool,  # thực ra không cần dùng trong negamax, nhưng giữ cho tương thích
+    piece: int,
+) -> Tuple[Optional[int], float]:
+    """Tìm kiếm Minimax có cắt tỉa alpha-beta (dạng negamax)."""
+
+    valid_cols = _valid_actions(board)
+    center = len(board[0]) // 2
+    valid_cols.sort(key=lambda c: abs(center - c))  # ưu tiên cột gần giữa hơn
+
+    opp = _opponent(piece)
+
+    # 1. DEEP-ENOUGH / Nút lá
+    if depth == 0 or _is_terminal_node(board, piece):
+        if _winning_move(board, piece):
+            return None, 1_000_000
+        elif _winning_move(board, opp):
+            return None, -1_000_000
+        else:
+            return None, _score_position(board, piece)
+
+    # 3. Nếu không còn nước đi: đánh giá static như nút lá
+    if not valid_cols:
+        return None, _score_position(board, piece)
+
+    # 4. Có successor: duyệt các nước đi, áp dụng mã giả MINIMAX-A-B
+    best_col: Optional[int] = None
+    value = -inf           # PassTd trong mã giả
+
+    for col in valid_cols:
+        # SUCCESSOR = MOVE-GEN(Position, Player)
+        # -> tạo board mới sau khi đánh vào cột col
         temp_board = _copy_board(board)
-        _drop_piece(temp_board, col, opp)
-        _, new_score = _minimax(temp_board, depth - 1, alpha, beta, True, piece)
-        if new_score < value:
-            value = new_score
+        _drop_piece(temp_board, col, piece)  # hoặc hàm bạn đang dùng để đặt quân
+
+        # RESULT-SUCC = MINIMAX-A-B(SUCC, Depth + 1, Opp(Player), -PassTd, -UseTd)
+        _, child_val = _minimax(
+            temp_board,
+            depth - 1,          # dùng depth còn lại nên trừ 1
+            -beta,              # -UseTd
+            -alpha,             # -PassTd
+            not maximizing_player,
+            opp,                # Opp(Player)
+        )
+
+        # NEW-VALUE = - VALUE(RESULT-SUCC)
+        new_value = -child_val
+
+        # if NEW-VALUE > PassTd then cập nhật
+        if new_value > value:
+            value = new_value
             best_col = col
-        beta = min(beta, value)
+
+        # cập nhật alpha (PassTd)
+        if value > alpha:
+            alpha = value
+
+        # if PassTd ≥ UseTd thì cắt tỉa
         if alpha >= beta:
             break
+
+    # 5. Trả về VALUE = PassTd, PATH = BEST-PATH (ở đây PATH chỉ là cột tốt nhất)
     return best_col, value
+
+
+    
 
 
 def choose_best_action(

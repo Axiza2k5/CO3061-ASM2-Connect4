@@ -5,10 +5,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from collections import deque
-<<<<<<< HEAD
-=======
 from Minimax.minimax import choose_best_action
->>>>>>> master
 
 class Player():
     """A class that represents a player in the game"""
@@ -61,11 +58,7 @@ class HumanPlayer(Player):
 class ComputerPlayer(Player):
     """A class that represents an AI player in the game"""
     
-<<<<<<< HEAD
-    def __init__(self, coin_type, player_type, mode='learning', file_path="RL/dqn_model.keras", q_table=None):
-=======
     def __init__(self, coin_type, player_type, mode='learning', file_path="RL/q_data1.pkl", q_table=None):
->>>>>>> master
         """
         Initialize an AI with the proper type which are one of Random and 
         Q-learner currently
@@ -161,33 +154,6 @@ class RandomPlayer(Player):
 
 
 class MinimaxPlayer(Player):
-<<<<<<< HEAD
-    """placeholder for minimax player"""
-    
-    def __init__(self, coin_type):
-        """
-        Initialize the computer player
-        """
-        Player.__init__(self, coin_type)
-        self._type = "minimax"
-        
-    def choose_action(self, state, actions):
-        """
-        placeholder for minimax player
-        """
-        return random.choice(actions)
-                
-    def learn(self, board, actions, action, game_over, game_logic):
-        """
-        placeholder for minimax player
-        """
-        pass
-
-class DQNPlayer(Player):
-    """A class that represents a Deep Q-Network AI player"""
-
-    def __init__(self, coin_type, mode='learning', epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995, alpha=0.001, gamma=0.99, file_path="RL/dqn_model.keras", model=None):
-=======
     """A minimax-based AI player with alpha-beta pruning."""
     
     def __init__(self, coin_type, depth=4):
@@ -217,16 +183,11 @@ class DQNPlayer(Player):
     """A class that represents a Deep Q-Network AI player"""
 
     def __init__(self, coin_type, mode='learning', epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.9995, alpha=0.001, gamma=0.99, file_path="RL/dqn_model.keras", model=None):
->>>>>>> master
         Player.__init__(self, coin_type)
         self._type = "dqn"
         self.state_size = 42 # 6 rows * 7 cols
         self.action_size = 7
-<<<<<<< HEAD
-        self.memory = deque(maxlen=2000)
-=======
         self.memory = deque(maxlen=5000)
->>>>>>> master
         self.gamma = gamma    # discount rate
         self.epsilon = epsilon  # exploration rate
         self.epsilon_min = epsilon_min
@@ -251,14 +212,9 @@ class DQNPlayer(Player):
         # Neural Net for Deep-Q learning Model
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.Input(shape=(self.state_size,)))
-<<<<<<< HEAD
-        model.add(tf.keras.layers.Dense(24, activation='relu'))
-        model.add(tf.keras.layers.Dense(24, activation='relu'))
-=======
         model.add(tf.keras.layers.Dense(128, activation='relu'))
         model.add(tf.keras.layers.Dense(128, activation='relu'))
         model.add(tf.keras.layers.Dense(64, activation='relu'))
->>>>>>> master
         model.add(tf.keras.layers.Dense(self.action_size, activation='linear'))
         model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate))
         return model
@@ -277,8 +233,6 @@ class DQNPlayer(Player):
         # Normalize? 0, 1, 2 -> maybe map to 0, 1, -1 or just keep as is.
         # Let's map 0->0, 1->1, 2->-1 if we are player 1, else flip.
         # For now, simple flatten.
-<<<<<<< HEAD
-=======
         
         processed = np.zeros_like(flat_state)
         my_coin = self.coin_type
@@ -286,7 +240,6 @@ class DQNPlayer(Player):
         processed[flat_state == my_coin] = 1
         processed[flat_state == opponent_coint] = -1
         processed[flat_state == 0] = 0
->>>>>>> master
         return np.reshape(flat_state, [1, self.state_size])
 
     def choose_action(self, state, actions):
@@ -334,19 +287,11 @@ class DQNPlayer(Player):
         # We can store (current_state, chosen_action, reward, None, True)
         winner = game_logic.get_winner()
         if winner == self.coin_type:
-<<<<<<< HEAD
-            reward = 1.0
-        elif winner == 0:
-            reward = 0.5
-        else:
-            reward = -1.0
-=======
             reward = 10.0
         elif winner == 0:
             reward = 0.0
         else:
             reward = -10.0
->>>>>>> master
             
         if game_over:
              processed_state = self._preprocess_state(current_state)
@@ -391,13 +336,8 @@ class DQNPlayer(Player):
         if self.last_state is not None and self.last_action is not None:
              # Normalize reward? 50 -> 1, -50 -> -1, 0.5 -> 0.01?
              # Let's stick to small range for NN. 1.0, -1.0, 0.0.
-<<<<<<< HEAD
-             if reward > 10: r = 1.0
-             elif reward < -10: r = -1.0
-=======
              if reward > 10: r = 10.0
              elif reward < -10: r = -10.0
->>>>>>> master
              else: r = 0.0 # Tie?
              
              # Actually, if I lost, reward is -1.
@@ -416,17 +356,6 @@ class DQNPlayer(Player):
         if len(self.memory) < batch_size:
             return
         minibatch = random.sample(self.memory, batch_size)
-<<<<<<< HEAD
-        for state, action, reward, next_state, done in minibatch:
-            target = reward
-            if not done and next_state is not None:
-                target = (reward + self.gamma *
-                          np.amax(self.model.predict(next_state, verbose=0)[0]))
-            target_f = self.model.predict(state, verbose=0)
-            target_f[0][action] = target
-            self.model.fit(state, target_f, epochs=1, verbose=0)
-            
-=======
         # Chuyển đổi list of tuples thành các numpy array riêng biệt để xử lý song song
         states = np.array([i[0] for i in minibatch])
         states = np.squeeze(states) # Đảm bảo shape là (batch_size, 42) thay vì (batch_size, 1, 42)
@@ -449,7 +378,6 @@ class DQNPlayer(Player):
         # Train model một lần duy nhất cho cả batch
         self.model.fit(states, targets, epochs=1, verbose=0)
         
->>>>>>> master
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
