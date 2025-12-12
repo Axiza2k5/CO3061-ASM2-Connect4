@@ -113,7 +113,7 @@ class GameView(object):
         elif game_mode == "play_rl":
             # Assuming trainedComputer is already loaded or we create a new one
             if self.trainedComputer is None:
-                self.trainedComputer = ComputerPlayer(first_coin_type, "dqn", mode="playing", file_path="CO3061-ASM2-Connect4-Duchoang/RL/dqn_model6.keras")
+                self.trainedComputer = ComputerPlayer(first_coin_type, "dqn", mode="playing", file_path="RL/dqn_model6.keras")
                 print("Loading default DQN agent...")
             else:
                 self.trainedComputer.set_coin_type(first_coin_type)
